@@ -1,0 +1,64 @@
+version: '3'
+
+services:
+  slapd:
+    image: osixia/openldap:1.5.0
+    container_name: slapd
+    environment:
+      - LDAP_ORGANISATION=example
+      - LDAP_DOMAIN=example.com
+      - LDAP_ADMIN_USERNAME=admin
+      - LDAP_ADMIN_PASSWORD=admin
+      - LDAP_CONFIG_PASSWORD=config_pass
+      - "LDAP_BASE_DN=dc=example,dc=com"
+      - LDAP_TLS_CRT_FILENAME=server.crt
+      - LDAP_TLS_KEY_FILENAME=server.key
+      - LDAP_TLS_CA_CRT_FILENAME=example.com.ca.crt
+      - LDAP_READONLY_USER=true
+      - LDAP_READONLY_USER_USERNAME=user-ro
+      - LDAP_READONLY_USER_PASSWORD=pass-ro
+    ports:
+      - 8389:389
+    networks:
+      - ldap-test
+    volumes:
+      - ./data/certificates:/container/service/slapd/assets/certs
+      - ./data/slapd/database:/var/lib/ldap
+      - ./data/slapd/config:/etc/ldap/slapd.d
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:15.0.1
+    container_name: keycloak-for-ldap
+    environment:
+      DB_VENDOR: POSTGRES
+      DB_ADDR: postgres
+      DB_DATABASE: keycloak
+      DB_USER: keycloak
+      DB_SCHEMA: public
+      DB_PASSWORD: password
+      KEYCLOAK_USER: admin
+      KEYCLOAK_PASSWORD: admin
+      # Uncomment the line below if you want to specify JDBC parameters. The parameter below is just an example, and it shouldn't be used in production without knowledge. It is highly recommended that you read the PostgreSQL JDBC driver documentation in order to use it.
+      #JDBC_PARAMS: "ssl=true"
+    ports:
+      - 8080:8080
+    networks:
+      - ldap-test
+    depends_on:
+      - postgres
+      - slapd
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres-for-keycloak-ldap
+    volumes:
+      - ./data/postgres:/var/lib/postgresql
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: password
+
+networks:
+  ldap-test:
